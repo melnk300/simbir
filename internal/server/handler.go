@@ -3,9 +3,12 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/gorilla/mux"
+	"goSimbir/internal/dto"
 	"goSimbir/internal/models"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -34,8 +37,52 @@ func registerAccount(w http.ResponseWriter, r *http.Request) {
 		} else {
 			fmt.Println(account)
 			w.WriteHeader(http.StatusCreated)
+			account.Password = ""
+			_ = json.NewEncoder(w).Encode(account)
 		}
 	} else {
+		w.WriteHeader(http.StatusBadRequest)
+	}
+}
+
+func getAccountById(w http.ResponseWriter, r *http.Request) {
+	account := models.Account{}
+	accountId, _ := strconv.Atoi(mux.Vars(r)["accountId"])
+	if accountId <= 0 {
+		w.WriteHeader(http.StatusBadRequest)
+	}
+	account.Id = accountId
+	err := account.GetAccountById()
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+	} else {
+		w.WriteHeader(http.StatusOK)
+		account.Password = ""
+		_ = json.NewEncoder(w).Encode(account)
+	}
+}
+
+func searchAccounts(w http.ResponseWriter, r *http.Request) {
+	var err error
+	filterFields := dto.FindFields{}
+	filterFields.FirstName = r.URL.Query().Get("firstName")
+	filterFields.LastName = r.URL.Query().Get("lastName")
+	filterFields.Email = r.URL.Query().Get("email")
+	filterFields.From, err = strconv.Atoi(r.URL.Query().Get("from"))
+	if (r.URL.Query().Get("from")) == "" {
+		filterFields.From = 0
+	} else if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	} else if filterFields.From < 0 {
+		w.WriteHeader(http.StatusBadRequest)
+	}
+
+	filterFields.Size, err = strconv.Atoi(r.URL.Query().Get("size"))
+	if (r.URL.Query().Get("size")) == "" {
+		filterFields.Size = 10
+	} else if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	} else if filterFields.Size <= 0 {
 		w.WriteHeader(http.StatusBadRequest)
 	}
 }

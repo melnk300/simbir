@@ -2,7 +2,6 @@ package models
 
 import (
 	"errors"
-	"fmt"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -11,7 +10,7 @@ type Account struct {
 	FirstName string `db:"first_name" json:"firstName"`
 	LastName  string `db:"last_name" json:"lastName"`
 	Email     string `db:"email" json:"email"`
-	Password  string `db:"password" json:"password"`
+	Password  string `db:"password" json:"password,omitempty"`
 }
 
 var db *sqlx.DB
@@ -19,13 +18,20 @@ var db *sqlx.DB
 func SetDB(dbConnect *sqlx.DB) { db = dbConnect }
 
 func (model *Account) RegisterAccountService() error {
-	fmt.Print(model)
 	var id int
 	err := db.QueryRow("INSERT INTO accounts (first_name, last_name, email, password) VALUES ($1, $2, $3, $4) RETURNING id", model.FirstName, model.LastName, model.Email, model.Password).Scan(&id)
 	if err != nil {
 		return errors.New("account already created")
 	} else {
 		model.Id = id
+	}
+	return nil
+}
+
+func (model *Account) GetAccountById() error {
+	err := db.Get(model, "SELECT * FROM accounts WHERE id = $1", model.Id)
+	if err != nil {
+		return errors.New("account not found")
 	}
 	return nil
 }
