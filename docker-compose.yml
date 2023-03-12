@@ -1,4 +1,4 @@
-version: "3.5"
+version: "3.9"
 services:
   db_auth:
     container_name: db_auth
@@ -8,3 +8,14 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_USER=${POSTGRES_USER}
     image: postgres:15.2
+
+  tests:
+    image: mrexpen/planet_olymp_phase1
+    pull_policy: always
+    ports:
+      - "8090:8080"
+    environment:
+      SERVER_URL: http://host.docker.internal:8080
+      STAGE: all
+      # all - запуск всех тестов из трёх доступных этапов
+      # 0, 1 или 2 - запуск тестов для соответствующего этапа

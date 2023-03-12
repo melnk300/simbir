@@ -3,6 +3,7 @@ package models
 import (
 	"errors"
 	"github.com/jmoiron/sqlx"
+	"goSimbir/internal/dto"
 )
 
 type Account struct {
@@ -28,7 +29,7 @@ func (model *Account) RegisterAccountService() error {
 	return nil
 }
 
-func (model *Account) GetAccountById() error {
+func (model *Account) GetAccountByIdService() error {
 	err := db.Get(model, "SELECT * FROM accounts WHERE id = $1", model.Id)
 	if err != nil {
 		return errors.New("account not found")
@@ -36,7 +37,21 @@ func (model *Account) GetAccountById() error {
 	return nil
 }
 
-//func (model *Account) GetAccountById(account_id int) (*Account, error) {
+func (model *Account) FindAccountsService(fields dto.FindFields) (*[]Account, error) {
+	var accounts []Account
+	query := `SELECT id, first_name, last_name, email FROM accounts
+         WHERE ($1 = '' OR first_name ILIKE '%'||$1||'%') AND
+               ($2 = '' OR last_name ILIKE '%'||$2||'%') AND
+               ($3 = '' OR email ILIKE '%'||$3||'%') 
+         LIMIT $4 OFFSET $5`
+	err := db.Select(&accounts, query, fields.FirstName, fields.LastName, fields.Email, fields.Size, fields.From)
+	if err != nil {
+		return nil, err
+	}
+	return &accounts, nil
+}
+
+//func (model *Account) GetAccountByIdService(account_id int) (*Account, error) {
 //	accounts := &Account{}
 //	err := db.Select(&accounts, "SELECT * FROM accounts AS a WHERE a.id = $1", account_id)
 //	if err != nil {

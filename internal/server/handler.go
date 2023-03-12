@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/gorilla/mux"
 	"goSimbir/internal/dto"
 	"goSimbir/internal/models"
@@ -34,14 +33,17 @@ func registerAccount(w http.ResponseWriter, r *http.Request) {
 		err := account.RegisterAccountService()
 		if err != nil {
 			w.WriteHeader(http.StatusConflict)
+			return
 		} else {
-			fmt.Println(account)
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
 			account.Password = ""
 			_ = json.NewEncoder(w).Encode(account)
+			return
 		}
 	} else {
 		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
 }
 
@@ -50,31 +52,38 @@ func getAccountById(w http.ResponseWriter, r *http.Request) {
 	accountId, _ := strconv.Atoi(mux.Vars(r)["accountId"])
 	if accountId <= 0 {
 		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
 	account.Id = accountId
-	err := account.GetAccountById()
+	err := account.GetAccountByIdService()
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
+		return
 	} else {
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		account.Password = ""
 		_ = json.NewEncoder(w).Encode(account)
+		return
 	}
 }
 
 func searchAccounts(w http.ResponseWriter, r *http.Request) {
 	var err error
+	account := models.Account{}
 	filterFields := dto.FindFields{}
 	filterFields.FirstName = r.URL.Query().Get("firstName")
 	filterFields.LastName = r.URL.Query().Get("lastName")
 	filterFields.Email = r.URL.Query().Get("email")
 	filterFields.From, err = strconv.Atoi(r.URL.Query().Get("from"))
-	if (r.URL.Query().Get("from")) == "" {
+	if r.URL.Query().Get("from") == "" {
 		filterFields.From = 0
 	} else if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		return
 	} else if filterFields.From < 0 {
 		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
 
 	filterFields.Size, err = strconv.Atoi(r.URL.Query().Get("size"))
@@ -82,9 +91,21 @@ func searchAccounts(w http.ResponseWriter, r *http.Request) {
 		filterFields.Size = 10
 	} else if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		return
 	} else if filterFields.Size <= 0 {
 		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
+
+	accounts, err := account.FindAccountsService(filterFields)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(accounts)
 }
 
 //func PrepareAccount(accounts []models.Account) []AccountResponse {
@@ -108,10 +129,10 @@ func searchAccounts(w http.ResponseWriter, r *http.Request) {
 //	}
 //}
 //
-//func GetAccountById(w http.ResponseWriter, r *http.Request) {
+//func GetAccountByIdService(w http.ResponseWriter, r *http.Request) {
 //	accountId, _ := strconv.Atoi(mux.Vars(r)["id"])
 //	account := models.Account{}
-//	accountsResponse, err := account.GetAccountById(accountId)
+//	accountsResponse, err := account.GetAccountByIdService(accountId)
 //	if err != nil {
 //		w.WriteHeader(http.StatusNotFound)
 //		return
