@@ -47,25 +47,21 @@ func registerAccount(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getAccountById(w http.ResponseWriter, r *http.Request) {
+func getAccount(w http.ResponseWriter, r *http.Request) {
 	account := models.Account{}
-	accountId, _ := strconv.Atoi(mux.Vars(r)["accountId"])
-	if accountId <= 0 {
+	account.Id, _ = strconv.Atoi(mux.Vars(r)["accountId"])
+	if account.Id <= 0 {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	account.Id = accountId
-	err := account.GetAccountByIdService()
+	err := account.GetAccountService()
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
-	} else {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		account.Password = ""
-		_ = json.NewEncoder(w).Encode(account)
-		return
 	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(account)
 }
 
 func searchAccounts(w http.ResponseWriter, r *http.Request) {
@@ -108,6 +104,48 @@ func searchAccounts(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(accounts)
 }
 
+func updateAccount(w http.ResponseWriter, r *http.Request) {
+	account := models.Account{}
+	account.Id, _ = strconv.Atoi(mux.Vars(r)["accountId"])
+	if account.Id <= 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	_ = json.NewDecoder(r.Body).Decode(&account)
+	if !validateField(account.FirstName) || !validateField(account.LastName) || !validateField(account.Email) || !validateField(account.Password) || !validateEmail(account.Email) {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	err := account.UpdateAccountService()
+	if err != nil && err.Error() == "account not found" {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	} else if err != nil && err.Error() == "email already exists" {
+		w.WriteHeader(http.StatusConflict)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	account.Password = ""
+	_ = json.NewEncoder(w).Encode(account)
+}
+
+func deleteAccount(w http.ResponseWriter, r *http.Request) {
+	account := models.Account{}
+	account.Id, _ = strconv.Atoi(mux.Vars(r)["accountId"])
+	if account.Id <= 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	err := account.DeleteAccountService()
+	if err != nil {
+		w.WriteHeader(http.StatusForbidden)
+	}
+}
+
 //func PrepareAccount(accounts []models.Account) []AccountResponse {
 //	var result []AccountResponse
 //	for _, account := range accounts {
@@ -129,10 +167,10 @@ func searchAccounts(w http.ResponseWriter, r *http.Request) {
 //	}
 //}
 //
-//func GetAccountByIdService(w http.ResponseWriter, r *http.Request) {
+//func GetAccountService(w http.ResponseWriter, r *http.Request) {
 //	accountId, _ := strconv.Atoi(mux.Vars(r)["id"])
 //	account := models.Account{}
-//	accountsResponse, err := account.GetAccountByIdService(accountId)
+//	accountsResponse, err := account.GetAccountService(accountId)
 //	if err != nil {
 //		w.WriteHeader(http.StatusNotFound)
 //		return
