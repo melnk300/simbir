@@ -39,3 +39,13 @@ func (model *Location) UpdateLocationService() error {
 
 	return nil
 }
+
+func (model *Location) DeleteLocationService() error {
+	err := db.QueryRow("DELETE FROM locations WHERE id = $1 RETURNING id", model.Id).Scan(&model.Id)
+
+	if err != nil {
+		return errors.New("location not found")
+	}
+
+	return nil
+}

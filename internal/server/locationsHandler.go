@@ -15,6 +15,7 @@ type LocationBody struct {
 }
 
 func getLocation(w http.ResponseWriter, r *http.Request) {
+
 	location := models.Location{}
 	location.Id, _ = strconv.Atoi(mux.Vars(r)["locationId"])
 	if location.Id <= 0 {
@@ -35,6 +36,11 @@ func getLocation(w http.ResponseWriter, r *http.Request) {
 }
 
 func createLocation(w http.ResponseWriter, r *http.Request) {
+	if models.CheckAnonim(r) == true {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
 	rawLocation := LocationBody{}
 	_ = json.NewDecoder(r.Body).Decode(&rawLocation)
 
@@ -62,6 +68,11 @@ func createLocation(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateLocation(w http.ResponseWriter, r *http.Request) {
+	if models.CheckAnonim(r) == true {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
 	rawLocation := LocationBody{}
 	_ = json.NewDecoder(r.Body).Decode(&rawLocation)
 
@@ -98,4 +109,27 @@ func updateLocation(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(location)
+}
+
+func deleteLocation(w http.ResponseWriter, r *http.Request) {
+	if models.CheckAnonim(r) == true {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	location := models.Location{}
+	location.Id, _ = strconv.Atoi(mux.Vars(r)["locationId"])
+
+	if location.Id <= 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	err := location.DeleteLocationService()
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }

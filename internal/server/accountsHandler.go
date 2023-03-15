@@ -1,22 +1,16 @@
 package server
 
 import (
+	b64 "encoding/base64"
 	"encoding/json"
+	"fmt"
 	"github.com/gorilla/mux"
 	"goSimbir/internal/dto"
 	"goSimbir/internal/models"
 	"net/http"
 	"regexp"
 	"strconv"
-	"strings"
 )
-
-func validateField(field string) bool {
-	if len(strings.TrimSpace(field)) == 0 {
-		return false
-	}
-	return true
-}
 
 func validateEmail(email string) bool {
 	match, err := regexp.Match(`^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$`, []byte(email))
@@ -29,18 +23,31 @@ func validateEmail(email string) bool {
 func registerAccount(w http.ResponseWriter, r *http.Request) {
 	account := models.Account{}
 	_ = json.NewDecoder(r.Body).Decode(&account)
+
+	if models.CheckAnonim(r) != true {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
 	if validateField(account.FirstName) && validateField(account.LastName) && validateField(account.Email) && validateField(account.Password) && validateEmail(account.Email) {
+
 		err := account.RegisterAccountService()
 		if err != nil {
 			w.WriteHeader(http.StatusConflict)
 			return
-		} else {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusCreated)
-			account.Password = ""
-			_ = json.NewEncoder(w).Encode(account)
-			return
 		}
+		w.Header().Set("Content-Type", "application/json")
+
+		loginEnc := b64.StdEncoding.EncodeToString([]byte(account.Email))
+		passwordEnc := b64.StdEncoding.EncodeToString([]byte(account.Password))
+
+		w.Header().Set("Authorization", fmt.Sprintf("Basic %s:%s", loginEnc, passwordEnc))
+
+		w.WriteHeader(http.StatusCreated)
+		account.Password = ""
+		_ = json.NewEncoder(w).Encode(account)
+
+		return
 	} else {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -48,6 +55,7 @@ func registerAccount(w http.ResponseWriter, r *http.Request) {
 }
 
 func getAccount(w http.ResponseWriter, r *http.Request) {
+
 	account := models.Account{}
 	account.Id, _ = strconv.Atoi(mux.Vars(r)["accountId"])
 	if account.Id <= 0 {
@@ -65,9 +73,10 @@ func getAccount(w http.ResponseWriter, r *http.Request) {
 }
 
 func searchAccounts(w http.ResponseWriter, r *http.Request) {
+
 	var err error
 	account := models.Account{}
-	filterFields := dto.FindFields{}
+	filterFields := dto.AccountFindFields{}
 	filterFields.FirstName = r.URL.Query().Get("firstName")
 	filterFields.LastName = r.URL.Query().Get("lastName")
 	filterFields.Email = r.URL.Query().Get("email")
@@ -92,7 +101,6 @@ func searchAccounts(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-
 	accounts, err := account.FindAccountsService(filterFields)
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
@@ -105,6 +113,11 @@ func searchAccounts(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateAccount(w http.ResponseWriter, r *http.Request) {
+	if models.CheckAnonim(r) == true {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
 	account := models.Account{}
 	account.Id, _ = strconv.Atoi(mux.Vars(r)["accountId"])
 	if account.Id <= 0 {
@@ -118,12 +131,15 @@ func updateAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := account.UpdateAccountService()
-	if err != nil && err.Error() == "account not found" {
-		w.WriteHeader(http.StatusForbidden)
-		return
-	} else if err != nil && err.Error() == "email already exists" {
-		w.WriteHeader(http.StatusConflict)
-		return
+	if err != nil {
+		switch err.Error() {
+		case "account not found":
+			w.WriteHeader(http.StatusForbidden)
+			return
+		case "email already exists":
+			w.WriteHeader(http.StatusConflict)
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -133,6 +149,11 @@ func updateAccount(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteAccount(w http.ResponseWriter, r *http.Request) {
+	if models.CheckAnonim(r) == true {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
 	account := models.Account{}
 	account.Id, _ = strconv.Atoi(mux.Vars(r)["accountId"])
 	if account.Id <= 0 {
@@ -142,74 +163,13 @@ func deleteAccount(w http.ResponseWriter, r *http.Request) {
 
 	err := account.DeleteAccountService()
 	if err != nil {
-		w.WriteHeader(http.StatusForbidden)
+		switch err.Error() {
+		case "invalid value":
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		case "entity not found":
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 	}
 }
-
-//func PrepareAccount(accounts []models.Account) []AccountResponse {
-//	var result []AccountResponse
-//	for _, account := range accounts {
-//		result = append(result, AccountResponse{account.Id, account.FirstName, account.LastName, account.Email})
-//	}
-//	return result
-//}
-//
-//func GetAccounts(w http.ResponseWriter, r *http.Request) {
-//	account := models.Account{}
-//	accounts, err := account.GetAllAccounts()
-//	if err != nil {
-//		log.Println(err)
-//		return
-//	}
-//
-//	if err = json.NewEncoder(w).Encode(PrepareAccount(accounts)); err != nil {
-//		log.Println(err)
-//	}
-//}
-//
-//func GetAccountService(w http.ResponseWriter, r *http.Request) {
-//	accountId, _ := strconv.Atoi(mux.Vars(r)["id"])
-//	account := models.Account{}
-//	accountsResponse, err := account.GetAccountService(accountId)
-//	if err != nil {
-//		w.WriteHeader(http.StatusNotFound)
-//		return
-//	}
-//
-//	if err := json.NewEncoder(w).Encode(accountsResponse); err != nil {
-//		log.Println(err)
-//	}
-//}
-//
-//func FindAccounts(w http.ResponseWriter, r *http.Request) {
-//	account := models.Account{}
-//
-//	var fields dto.FindFields
-//	query := r.URL.Query()
-//
-//	if query.Get("firstName") != "" {
-//		fields.FirstName = query.Get("firstName")
-//	}
-//	if query.Get("lastName") != "" {
-//		fields.LastName = query.Get("lastName")
-//	}
-//	if query.Get("email") != "" {
-//		fields.Email = query.Get("email")
-//	}
-//	if query.Get("from") != "" {
-//		fields.From, _ = strconv.Atoi(query.Get("from"))
-//	}
-//	if query.Get("size") != "" {
-//		fields.Size, _ = strconv.Atoi(query.Get("size"))
-//	}
-//
-//	accountsResponse, err := account.FindAccount(fields)
-//	if err != nil {
-//		w.WriteHeader(http.StatusNotFound)
-//		return
-//	}
-//
-//	if err := json.NewEncoder(w).Encode(PrepareAccount(accountsResponse)); err != nil {
-//		log.Println(err)
-//	}
-//}
